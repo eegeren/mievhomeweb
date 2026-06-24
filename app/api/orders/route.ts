@@ -14,6 +14,9 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as {
+    deliveryAddress?: string;
+    billingAddress?: string;
+    paymentMethod?: string;
     items?: Array<{
       productId: number;
       quantity: number;
@@ -60,6 +63,9 @@ export async function POST(request: Request) {
     data: {
       userId: user?.id,
       total,
+      deliveryAddress: body.deliveryAddress,
+      billingAddress: body.billingAddress,
+      paymentMethod: body.paymentMethod,
       items: {
         create: orderItems
       }

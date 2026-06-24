@@ -30,6 +30,12 @@ type AccountUser = {
   phone?: string | null;
 };
 
+type CheckoutDetails = {
+  deliveryAddress: string;
+  billingAddress: string;
+  paymentMethod: string;
+};
+
 const instagramUrl = "https://www.instagram.com/mievhomebandirma";
 const mapsUrl =
   "https://www.google.com/maps/search/?api=1&query=17%20Eyl%C3%BCl%20Mahallesi%20%C3%87orap%C3%A7%C4%B1lar%20Sokak%20No%3A6%20Band%C4%B1rma%20Bal%C4%B1kesir";
@@ -46,6 +52,11 @@ export function Storefront() {
   const [authOpen, setAuthOpen] = useState(false);
   const [user, setUser] = useState<AccountUser | null>(null);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
+  const [checkoutDetails, setCheckoutDetails] = useState<CheckoutDetails>({
+    deliveryAddress: "",
+    billingAddress: "",
+    paymentMethod: "Kapıda ödeme"
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -141,6 +152,11 @@ export function Storefront() {
       return;
     }
 
+    if (!checkoutDetails.deliveryAddress.trim()) {
+      setCheckoutStatus("Teslimat adresi gerekli.");
+      return;
+    }
+
     setCheckoutStatus("Sipariş oluşturuluyor...");
 
     try {
@@ -150,6 +166,9 @@ export function Storefront() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
+          ...checkoutDetails,
+          billingAddress:
+            checkoutDetails.billingAddress || checkoutDetails.deliveryAddress,
           items: cart.map((item) => ({
             productId: item.id,
             quantity: item.quantity
@@ -395,6 +414,8 @@ export function Storefront() {
           onAuth={() => setAuthOpen(true)}
           onCheckout={createOrder}
           checkoutStatus={checkoutStatus}
+          checkoutDetails={checkoutDetails}
+          onCheckoutDetailsChange={setCheckoutDetails}
         />
       ) : null}
 
@@ -510,7 +531,9 @@ function CartDrawer({
   onUpdate,
   onAuth,
   onCheckout,
-  checkoutStatus
+  checkoutStatus,
+  checkoutDetails,
+  onCheckoutDetailsChange
 }: {
   cart: CartItem[];
   subtotal: number;
@@ -521,6 +544,8 @@ function CartDrawer({
   onAuth: () => void;
   onCheckout: () => void;
   checkoutStatus: string | null;
+  checkoutDetails: CheckoutDetails;
+  onCheckoutDetailsChange: (details: CheckoutDetails) => void;
 }) {
   return (
     <div className="fixed inset-0 z-50">
@@ -594,6 +619,48 @@ function CartDrawer({
               ))}
             </div>
           )}
+
+          {cart.length > 0 ? (
+            <div className="mt-5 space-y-3 rounded-lg border border-cocoa/10 bg-white p-4">
+              <p className="text-sm font-black text-ink">Teslimat ve ödeme</p>
+              <textarea
+                placeholder="Teslimat adresi"
+                value={checkoutDetails.deliveryAddress}
+                onChange={(event) =>
+                  onCheckoutDetailsChange({
+                    ...checkoutDetails,
+                    deliveryAddress: event.target.value
+                  })
+                }
+                className="min-h-20 w-full rounded-lg border border-cocoa/10 bg-porcelain px-3 py-2 text-sm font-semibold outline-none focus:border-rosewood/45"
+              />
+              <textarea
+                placeholder="Fatura adresi (boş bırakılırsa teslimat adresi kullanılır)"
+                value={checkoutDetails.billingAddress}
+                onChange={(event) =>
+                  onCheckoutDetailsChange({
+                    ...checkoutDetails,
+                    billingAddress: event.target.value
+                  })
+                }
+                className="min-h-20 w-full rounded-lg border border-cocoa/10 bg-porcelain px-3 py-2 text-sm font-semibold outline-none focus:border-rosewood/45"
+              />
+              <select
+                value={checkoutDetails.paymentMethod}
+                onChange={(event) =>
+                  onCheckoutDetailsChange({
+                    ...checkoutDetails,
+                    paymentMethod: event.target.value
+                  })
+                }
+                className="h-11 w-full rounded-lg border border-cocoa/10 bg-porcelain px-3 text-sm font-bold outline-none focus:border-rosewood/45"
+              >
+                <option>Kapıda ödeme</option>
+                <option>Mağazada ödeme</option>
+                <option>Kart ile ödeme (yakında)</option>
+              </select>
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-cocoa/10 bg-white p-5">
@@ -657,12 +724,19 @@ function AuthModal({
 }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreementsAccepted, setAgreementsAccepted] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submit() {
+    if (mode === "register" && !agreementsAccepted) {
+      setStatus("Üyelik sözleşmesi ve gizlilik politikası onayı gerekli.");
+      return;
+    }
+
     setLoading(true);
     setStatus(null);
 
@@ -674,7 +748,7 @@ function AuthModal({
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ name, phone, email, password })
         }
       );
       const result = (await response.json()) as AccountUser & {
@@ -721,13 +795,22 @@ function AuthModal({
 
         <div className="mt-6 space-y-3">
           {mode === "register" ? (
-            <input
-              type="text"
-              placeholder="Ad Soyad"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
-            />
+            <>
+              <input
+                type="text"
+                placeholder="Ad Soyad"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
+              />
+              <input
+                type="tel"
+                placeholder="Telefon numarası"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
+              />
+            </>
           ) : null}
           <input
             type="email"
@@ -743,6 +826,26 @@ function AuthModal({
             onChange={(event) => setPassword(event.target.value)}
             className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
           />
+          {mode === "register" ? (
+            <>
+              <label className="flex items-start gap-3 rounded-lg bg-white p-3 text-xs font-semibold leading-5 text-cocoa">
+                <input
+                  type="checkbox"
+                  checked={agreementsAccepted}
+                  onChange={(event) => setAgreementsAccepted(event.target.checked)}
+                  className="mt-1 h-4 w-4 accent-rosewood"
+                />
+                <span>
+                  Üyelik sözleşmesini ve gizlilik politikasını okudum, kabul
+                  ediyorum.
+                </span>
+              </label>
+              <p className="rounded-lg bg-cream px-3 py-2 text-xs font-semibold leading-5 text-cocoa">
+                SMS veya e-posta doğrulaması canlı entegrasyon aşamasında
+                etkinleştirilecektir.
+              </p>
+            </>
+          ) : null}
           <button
             className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-rosewood px-5 text-sm font-black text-white disabled:opacity-60"
             disabled={loading}

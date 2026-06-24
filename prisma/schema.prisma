@@ -39,13 +39,16 @@ model User {
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  userId    Int?
-  user      User?       @relation(fields: [userId], references: [id])
-  status    OrderStatus @default(PENDING)
-  total     Int
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id              Int         @id @default(autoincrement())
+  userId          Int?
+  user            User?       @relation(fields: [userId], references: [id])
+  status          OrderStatus @default(PENDING)
+  total           Int
+  deliveryAddress String?
+  billingAddress  String?
+  paymentMethod   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   items OrderItem[]
 }
