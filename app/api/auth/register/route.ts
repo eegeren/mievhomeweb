@@ -26,6 +26,17 @@ export async function POST(request: Request) {
     );
   }
 
+  const existingUser = await prisma.user.findUnique({
+    where: { email: body.email.toLowerCase() }
+  });
+
+  if (existingUser) {
+    return NextResponse.json(
+      { error: "Bu e-posta ile kayıtlı kullanıcı var." },
+      { status: 409 }
+    );
+  }
+
   const passwordHash = await bcrypt.hash(body.password, 12);
   const user = await prisma.user.create({
     data: {

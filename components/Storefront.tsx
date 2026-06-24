@@ -24,6 +24,13 @@ type CartItem = Product & {
   quantity: number;
 };
 
+type AccountUser = {
+  id: number;
+  email: string;
+  name?: string | null;
+  phone?: string | null;
+};
+
 const instagramUrl = "https://www.instagram.com/mievhomebandirma";
 const mapsUrl =
   "https://www.google.com/maps/search/?api=1&query=17%20Eyl%C3%BCl%20Mahallesi%20%C3%87orap%C3%A7%C4%B1lar%20Sokak%20No%3A6%20Band%C4%B1rma%20Bal%C4%B1kesir";
@@ -62,6 +69,8 @@ export function Storefront() {
   const [cartOpen, setCartOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<AccountUser | null>(null);
+  const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -133,6 +142,44 @@ export function Storefront() {
         .map((item) => (item.id === productId ? { ...item, quantity } : item))
         .filter((item) => item.quantity > 0)
     );
+  }
+
+  async function createOrder() {
+    if (cart.length === 0) {
+      setCheckoutStatus("Sepetiniz boş.");
+      return;
+    }
+
+    setCheckoutStatus("Sipariş oluşturuluyor...");
+
+    try {
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: user?.id,
+          items: cart.map((item) => ({
+            productId: item.id,
+            quantity: item.quantity
+          }))
+        })
+      });
+
+      const result = (await response.json()) as { id?: number; error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Sipariş oluşturulamadı.");
+      }
+
+      setCart([]);
+      setCheckoutStatus(`Sipariş alındı. Sipariş No: ${result.id}`);
+    } catch (error) {
+      setCheckoutStatus(
+        error instanceof Error ? error.message : "Sipariş oluşturulamadı."
+      );
+    }
   }
 
   return (
@@ -375,10 +422,20 @@ export function Storefront() {
           onClose={() => setCartOpen(false)}
           onUpdate={updateQuantity}
           onAuth={() => setAuthOpen(true)}
+          onCheckout={createOrder}
+          checkoutStatus={checkoutStatus}
         />
       ) : null}
 
-      {authOpen ? <AuthModal onClose={() => setAuthOpen(false)} /> : null}
+      {authOpen ? (
+        <AuthModal
+          onClose={() => setAuthOpen(false)}
+          onAuthenticated={(user) => {
+            setUser(user);
+            setAuthOpen(false);
+          }}
+        />
+      ) : null}
     </main>
   );
 }
@@ -483,7 +540,9 @@ function CartDrawer({
   total,
   onClose,
   onUpdate,
-  onAuth
+  onAuth,
+  onCheckout,
+  checkoutStatus
 }: {
   cart: CartItem[];
   subtotal: number;
@@ -492,6 +551,8 @@ function CartDrawer({
   onClose: () => void;
   onUpdate: (productId: number, quantity: number) => void;
   onAuth: () => void;
+  onCheckout: () => void;
+  checkoutStatus: string | null;
 }) {
   return (
     <div className="fixed inset-0 z-50">
@@ -577,13 +638,24 @@ function CartDrawer({
           <SummaryRow label="Toplam" value={formatPrice(total)} strong />
           <button
             className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-rosewood px-5 text-sm font-black text-white transition hover:bg-cocoa"
-            onClick={onAuth}
+            onClick={onCheckout}
           >
             <CreditCard className="h-4 w-4" />
-            Ödemeye Geç
+            Siparişi Oluştur
           </button>
+          <button
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-cocoa/10 bg-white px-5 text-sm font-black text-cocoa"
+            onClick={onAuth}
+          >
+            Hesaba Giriş Yap
+          </button>
+          {checkoutStatus ? (
+            <p className="mt-3 rounded-lg bg-cream px-3 py-2 text-center text-xs font-bold text-cocoa">
+              {checkoutStatus}
+            </p>
+          ) : null}
           <p className="mt-3 text-center text-xs font-semibold text-cocoa/55">
-            Demo akıştır; gerçek ödeme entegrasyonu eklenmemiştir.
+            Ödeme entegrasyonu sonraki aşamada eklenebilir.
           </p>
         </div>
       </aside>
@@ -608,7 +680,51 @@ function SummaryRow({
   );
 }
 
-function AuthModal({ onClose }: { onClose: () => void }) {
+function AuthModal({
+  onClose,
+  onAuthenticated
+}: {
+  onClose: () => void;
+  onAuthenticated: (user: AccountUser) => void;
+}) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function submit() {
+    setLoading(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch(
+        mode === "login" ? "/api/auth/login" : "/api/auth/register",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ name, email, password })
+        }
+      );
+      const result = (await response.json()) as AccountUser & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "İşlem tamamlanamadı.");
+      }
+
+      onAuthenticated(result);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "İşlem tamamlanamadı.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
       <button
@@ -627,29 +743,63 @@ function AuthModal({ onClose }: { onClose: () => void }) {
         <p className="text-sm font-black uppercase tracking-[0.22em] text-rosewood">
           Üyelik
         </p>
-        <h2 className="mt-2 text-3xl font-black">Miev hesabına giriş yap</h2>
+        <h2 className="mt-2 text-3xl font-black">
+          {mode === "login" ? "Miev hesabına giriş yap" : "Yeni üyelik oluştur"}
+        </h2>
         <p className="mt-3 text-sm leading-6 text-cocoa/70">
           Sipariş takibi, favoriler, adres defteri ve kampanya bildirimleri için
           üyelik alanı hazırlandı.
         </p>
 
         <div className="mt-6 space-y-3">
+          {mode === "register" ? (
+            <input
+              type="text"
+              placeholder="Ad Soyad"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
+            />
+          ) : null}
           <input
             type="email"
             placeholder="E-posta adresi"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
           />
           <input
             type="password"
             placeholder="Şifre"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
             className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
           />
-          <button className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-rosewood px-5 text-sm font-black text-white">
-            Giriş Yap
+          <button
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-rosewood px-5 text-sm font-black text-white disabled:opacity-60"
+            disabled={loading}
+            onClick={submit}
+          >
+            {loading
+              ? "İşleniyor..."
+              : mode === "login"
+                ? "Giriş Yap"
+                : "Üyelik Oluştur"}
           </button>
-          <button className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-cocoa/10 bg-white px-5 text-sm font-black text-cocoa">
-            Yeni Üyelik Oluştur
+          <button
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-cocoa/10 bg-white px-5 text-sm font-black text-cocoa"
+            onClick={() => {
+              setStatus(null);
+              setMode(mode === "login" ? "register" : "login");
+            }}
+          >
+            {mode === "login" ? "Yeni Üyelik Oluştur" : "Giriş Ekranına Dön"}
           </button>
+          {status ? (
+            <p className="rounded-lg bg-cream px-3 py-2 text-center text-xs font-bold text-cocoa">
+              {status}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-3 text-center text-xs font-bold text-cocoa/65">

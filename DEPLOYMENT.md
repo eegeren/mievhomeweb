@@ -40,6 +40,8 @@ Vercel proje ayarlarında Environment Variables bölümüne ekle:
 DATABASE_URL=railway_postgres_database_url
 ```
 
+Bu değişkeni ekledikten sonra Vercel'de yeni deploy tetikle.
+
 Sonra deploy:
 
 ```bash
@@ -52,9 +54,23 @@ vercel --prod
 
 - `GET /api/products`: Ürünleri Railway PostgreSQL'den okur. `DATABASE_URL` yoksa demo ürünleri döner.
 - `POST /api/auth/register`: Kullanıcıyı Railway PostgreSQL'e kaydeder.
+- `POST /api/auth/login`: Kullanıcı girişini kontrol eder.
+- `POST /api/orders`: Sepetteki ürünlerden sipariş oluşturur.
+
+## Canlı DB Aktivasyon Sırası
+
+Railway PostgreSQL `DATABASE_URL` hazır olduktan sonra:
+
+```bash
+DATABASE_URL="railway_postgres_database_url" npm run db:migrate
+DATABASE_URL="railway_postgres_database_url" npm run db:seed
+```
+
+Ardından aynı `DATABASE_URL` değerini Vercel Production Environment Variables içine ekleyip redeploy et.
 
 ## Notlar
 
 - Şu an ödeme entegrasyonu demo akıştır.
-- Gerçek giriş oturumu için sonraki adımda NextAuth/Auth.js veya JWT tabanlı session eklenebilir.
+- Giriş/kayıt ve sipariş oluşturma API'leri Railway DB'ye bağlanır.
+- Kalıcı oturum için sonraki adımda NextAuth/Auth.js veya JWT tabanlı session eklenebilir.
 - Ürün yönetimi için admin paneli sonraki aşamada eklenmelidir.
