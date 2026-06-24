@@ -7,7 +7,6 @@ import {
   Instagram,
   LockKeyhole,
   MapPin,
-  Menu,
   MessageCircle,
   Minus,
   Plus,
@@ -38,37 +37,12 @@ const whatsappUrl = "https://wa.me/905000000000";
 const address =
   "17 Eylül Mahallesi Çorapçılar Sokak No:6, Bandırma / Balıkesir";
 
-const categories = [
-  "Tümü",
-  "Çay & Kahve",
-  "Cam & Porselen",
-  "Mutfak",
-  "Dekorasyon",
-  "Organizer",
-  "Kampanya"
-];
-
-const navCategories = [
-  "Züccaciye",
-  "Ev & Yaşam",
-  "Mutfak",
-  "Cam",
-  "Porselen",
-  "Dekorasyon",
-  "Organizer",
-  "Kampanyalar",
-  "Çok Satanlar",
-  "Yeni Gelenler"
-];
-
 export function Storefront() {
-  const [selectedCategory, setSelectedCategory] = useState("Tümü");
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>(fallbackProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<AccountUser | null>(null);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
 
@@ -101,13 +75,13 @@ export function Storefront() {
 
   const filteredProducts = products
     .filter((product) => {
-      const matchesCategory =
-        selectedCategory === "Tümü" || product.category === selectedCategory;
-      const matchesQuery = product.name
-        .toLocaleLowerCase("tr")
-        .includes(query.toLocaleLowerCase("tr"));
+      const search = query.toLocaleLowerCase("tr");
+      const matchesQuery =
+        product.name.toLocaleLowerCase("tr").includes(search) ||
+        product.description.toLocaleLowerCase("tr").includes(search) ||
+        product.category.toLocaleLowerCase("tr").includes(search);
 
-      return matchesCategory && matchesQuery;
+      return matchesQuery;
     })
     .sort((a, b) => b.reviews - a.reviews);
 
@@ -200,14 +174,6 @@ export function Storefront() {
         </div>
 
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <button
-            aria-label="Menüyü aç"
-            className="flex h-10 w-10 items-center justify-center rounded-md border border-[#eadfd4] bg-white lg:hidden"
-            onClick={() => setMobileMenuOpen((value) => !value)}
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-
           <a href="#anasayfa" className="flex shrink-0 items-center">
             <Image
               src="/miev-home-logo.png"
@@ -256,24 +222,6 @@ export function Storefront() {
           </button>
         </div>
 
-        <nav className="hidden border-t border-[#f0e6dc] lg:block">
-          <div className="mx-auto flex max-w-7xl items-center gap-7 overflow-x-auto px-4 text-sm font-bold text-[#2d2723] sm:px-6 lg:px-8">
-            {navCategories.map((category) => (
-              <button
-                key={category}
-                onClick={() =>
-                  setSelectedCategory(
-                    categories.includes(category) ? category : "Tümü"
-                  )
-                }
-                className="shrink-0 border-b-2 border-transparent py-3 transition hover:border-[#9f5f57] hover:text-[#9f5f57]"
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </nav>
-
         <div className="mx-auto max-w-7xl px-4 pb-3 sm:px-6 lg:hidden">
           <div className="relative">
             <Search className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9f5f57]" />
@@ -284,30 +232,11 @@ export function Storefront() {
               className="h-11 w-full rounded-md border-2 border-transparent bg-[#fffaf4] px-4 pr-12 text-sm font-semibold outline-none focus:border-[#9f5f57] focus:bg-white"
             />
           </div>
-          {mobileMenuOpen ? (
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold text-[#2d2723]">
-              <button
-                className="rounded-md bg-[#fffaf4] px-4 py-3 text-left"
-                onClick={() => setAuthOpen(true)}
-              >
-                Giriş Yap
-              </button>
-              <a className="rounded-md bg-[#fffaf4] px-4 py-3" href="#urunler">
-                Ürünler
-              </a>
-              <a className="rounded-md bg-[#fffaf4] px-4 py-3" href="#kampanyalar">
-                Kampanyalar
-              </a>
-              <a className="rounded-md bg-[#fffaf4] px-4 py-3" href="#konum">
-                Mağaza
-              </a>
-            </div>
-          ) : null}
         </div>
       </header>
 
       <section id="urunler" className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {filteredProducts.map((product) => (
             <ProductCard
               key={product.id}
@@ -479,7 +408,7 @@ function ProductCard({
 }) {
   return (
     <article className="group flex h-full flex-col rounded-md border border-[#eadfd4] bg-white p-3 transition hover:border-[#9f5f57] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
-      <div className={`relative aspect-[3/4] overflow-hidden rounded-md bg-gradient-to-br ${product.color} p-4`}>
+      <div className={`relative aspect-[4/3] overflow-hidden rounded-md bg-gradient-to-br ${product.color} p-4`}>
         {product.badge ? (
           <span className="absolute left-2 top-2 rounded-sm bg-[#9f5f57] px-2 py-1 text-[11px] font-black text-white">
             {product.badge}
@@ -503,10 +432,10 @@ function ProductCard({
         {product.rating}
         <span className="font-semibold text-[#8f7b70]">({product.reviews})</span>
       </div>
-      <h3 className="mt-2 min-h-12 text-sm font-bold leading-6 text-[#2d2723]">
+      <h3 className="mt-2 min-h-12 text-base font-black leading-6 text-[#2d2723]">
         {product.name}
       </h3>
-      <p className="mt-1 min-h-10 text-xs leading-5 text-[#6f4b3d]">
+      <p className="mt-1 min-h-10 text-sm leading-5 text-[#6f4b3d]">
         {product.description}
       </p>
       <p className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#8f7b70]">
