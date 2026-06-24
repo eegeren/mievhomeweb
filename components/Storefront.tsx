@@ -38,6 +38,7 @@ const address =
   "17 Eylül Mahallesi Çorapçılar Sokak No:6, Bandırma / Balıkesir";
 
 export function Storefront() {
+  const [searchDraft, setSearchDraft] = useState("");
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>(fallbackProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -78,8 +79,7 @@ export function Storefront() {
       const search = query.toLocaleLowerCase("tr");
       const matchesQuery =
         product.name.toLocaleLowerCase("tr").includes(search) ||
-        product.description.toLocaleLowerCase("tr").includes(search) ||
-        product.category.toLocaleLowerCase("tr").includes(search);
+        product.description.toLocaleLowerCase("tr").includes(search);
 
       return matchesQuery;
     })
@@ -116,6 +116,10 @@ export function Storefront() {
         .map((item) => (item.id === productId ? { ...item, quantity } : item))
         .filter((item) => item.quantity > 0)
     );
+  }
+
+  function performSearch() {
+    setQuery(searchDraft.trim());
   }
 
   async function createOrder() {
@@ -185,14 +189,27 @@ export function Storefront() {
             />
           </a>
 
-          <div className="relative mx-2 hidden flex-1 lg:block">
-            <Search className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9f5f57]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ürün, kategori veya kampanya ara"
-              className="h-11 w-full rounded-md border-2 border-transparent bg-[#fffaf4] px-4 pr-12 text-sm font-semibold outline-none transition placeholder:text-[#8f7b70] focus:border-[#9f5f57] focus:bg-white"
-            />
+          <div className="mx-2 hidden flex-1 items-center gap-2 lg:flex">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9f5f57]" />
+              <input
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    performSearch();
+                  }
+                }}
+                placeholder="Ürün ara"
+                className="h-11 w-full rounded-md border-2 border-transparent bg-[#fffaf4] px-4 pl-12 text-sm font-semibold outline-none transition placeholder:text-[#8f7b70] focus:border-[#9f5f57] focus:bg-white"
+              />
+            </div>
+            <button
+              className="h-11 rounded-md bg-[#9f5f57] px-6 text-sm font-black text-white transition hover:bg-[#6f4b3d]"
+              onClick={performSearch}
+            >
+              Ara
+            </button>
           </div>
 
           <button
@@ -223,14 +240,27 @@ export function Storefront() {
         </div>
 
         <div className="mx-auto max-w-7xl px-4 pb-3 sm:px-6 lg:hidden">
-          <div className="relative">
-            <Search className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9f5f57]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ürün ara"
-              className="h-11 w-full rounded-md border-2 border-transparent bg-[#fffaf4] px-4 pr-12 text-sm font-semibold outline-none focus:border-[#9f5f57] focus:bg-white"
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9f5f57]" />
+              <input
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    performSearch();
+                  }
+                }}
+                placeholder="Ürün ara"
+                className="h-11 w-full rounded-md border-2 border-transparent bg-[#fffaf4] px-4 pl-12 text-sm font-semibold outline-none focus:border-[#9f5f57] focus:bg-white"
+              />
+            </div>
+            <button
+              className="h-11 rounded-md bg-[#9f5f57] px-5 text-sm font-black text-white"
+              onClick={performSearch}
+            >
+              Ara
+            </button>
           </div>
         </div>
       </header>
@@ -437,9 +467,6 @@ function ProductCard({
       </h3>
       <p className="mt-1 min-h-10 text-sm leading-5 text-[#6f4b3d]">
         {product.description}
-      </p>
-      <p className="mt-3 text-[11px] font-black uppercase tracking-[0.12em] text-[#8f7b70]">
-        {product.category}
       </p>
       <div className="mt-3 flex items-end gap-2">
         <span className="text-xl font-black text-[#9f5f57]">
