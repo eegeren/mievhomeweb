@@ -177,7 +177,7 @@ export function Storefront() {
           </div>
         </div>
 
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
+        <div className="mx-auto flex h-20 max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 lg:h-20 lg:px-8">
           <a href="#anasayfa" className="flex shrink-0 items-center">
             <Image
               src="/miev-home-logo.png"
@@ -185,7 +185,7 @@ export function Storefront() {
               width={612}
               height={408}
               priority
-              className="h-14 w-auto object-contain sm:h-16 lg:h-[72px]"
+              className="h-[76px] w-auto object-contain"
             />
           </a>
 
