@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { cookieName, verifySessionToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +14,6 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as {
-    userId?: number;
     items?: Array<{
       productId: number;
       quantity: number;
@@ -52,10 +53,12 @@ export async function POST(request: Request) {
     (sum, item) => sum + item.unitPrice * item.quantity,
     0
   );
+  const token = cookies().get(cookieName)?.value;
+  const user = await verifySessionToken(token);
 
   const order = await prisma.order.create({
     data: {
-      userId: body.userId,
+      userId: user?.id,
       total,
       items: {
         create: orderItems

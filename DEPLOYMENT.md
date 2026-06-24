@@ -38,6 +38,7 @@ Vercel proje ayarlarında Environment Variables bölümüne ekle:
 
 ```bash
 DATABASE_URL=railway_postgres_database_url
+AUTH_SECRET=uzun_rastgele_bir_deger
 ```
 
 Bu değişkeni ekledikten sonra Vercel'de yeni deploy tetikle.
@@ -54,8 +55,10 @@ vercel --prod
 
 - `GET /api/products`: Ürünleri Railway PostgreSQL'den okur. `DATABASE_URL` yoksa demo ürünleri döner.
 - `POST /api/auth/register`: Kullanıcıyı Railway PostgreSQL'e kaydeder.
-- `POST /api/auth/login`: Kullanıcı girişini kontrol eder.
-- `POST /api/orders`: Sepetteki ürünlerden sipariş oluşturur.
+- `POST /api/auth/login`: Kullanıcı girişini kontrol eder ve güvenli cookie oluşturur.
+- `GET /api/auth/me`: Aktif oturumdaki kullanıcıyı döner.
+- `POST /api/auth/logout`: Oturumu kapatır.
+- `POST /api/orders`: Sepetteki ürünlerden sipariş oluşturur. Kullanıcı giriş yaptıysa sipariş kullanıcıya bağlanır.
 
 ## Canlı DB Aktivasyon Sırası
 
@@ -67,6 +70,12 @@ DATABASE_URL="railway_postgres_database_url" npm run db:seed
 ```
 
 Ardından aynı `DATABASE_URL` değerini Vercel Production Environment Variables içine ekleyip redeploy et.
+
+`AUTH_SECRET` için örnek üretim:
+
+```bash
+openssl rand -base64 32
+```
 
 ## Notlar
 

@@ -50,6 +50,19 @@ export function Storefront() {
   useEffect(() => {
     let mounted = true;
 
+    fetch("/api/auth/me")
+      .then((response) => response.json() as Promise<{ user: AccountUser | null }>)
+      .then((result) => {
+        if (mounted) {
+          setUser(result.user);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setUser(null);
+        }
+      });
+
     fetch("/api/products")
       .then((response) => {
         if (!response.ok) {
@@ -137,7 +150,6 @@ export function Storefront() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          userId: user?.id,
           items: cart.map((item) => ({
             productId: item.id,
             quantity: item.quantity
@@ -217,7 +229,7 @@ export function Storefront() {
             onClick={() => setAuthOpen(true)}
           >
             <User className="h-4 w-4" />
-            Giriş Yap
+            {user ? user.name ?? "Hesabım" : "Giriş Yap"}
           </button>
 
           <button className="hidden min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:inline-flex">

@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { createSessionToken, sessionCookieOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +36,21 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({
+  const sessionUser = {
     id: user.id,
     email: user.email,
-    name: user.name,
+    name: user.name
+  };
+  const token = await createSessionToken(sessionUser);
+  const response = NextResponse.json({
+    ...sessionUser,
     phone: user.phone
   });
+
+  response.cookies.set({
+    ...sessionCookieOptions(),
+    value: token
+  });
+
+  return response;
 }
