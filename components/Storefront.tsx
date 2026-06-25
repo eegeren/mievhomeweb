@@ -59,6 +59,8 @@ type AccountOrder = {
   }>;
 };
 
+type ProfileTab = "profile" | "addresses" | "orders" | "settings";
+
 const instagramUrl = "https://www.instagram.com/mievhomebandirma";
 const mapsUrl =
   "https://www.google.com/maps/search/?api=1&query=17%20Eyl%C3%BCl%20Mahallesi%20%C3%87orap%C3%A7%C4%B1lar%20Sokak%20No%3A6%20Band%C4%B1rma%20Bal%C4%B1kesir";
@@ -74,6 +76,8 @@ export function Storefront() {
   const [cartOpen, setCartOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<ProfileTab>("profile");
   const [user, setUser] = useState<AccountUser | null>(null);
   const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
@@ -244,6 +248,26 @@ export function Storefront() {
     setUser(null);
     setOrders([]);
     setProfileOpen(false);
+    setProfileMenuOpen(false);
+  }
+
+  function toggleAccountMenu() {
+    if (user) {
+      setProfileMenuOpen((current) => !current);
+    } else {
+      setAuthOpen(true);
+    }
+  }
+
+  function openProfilePanel(tab: ProfileTab) {
+    setProfileInitialTab(tab);
+    setProfileMenuOpen(false);
+
+    if (tab === "orders") {
+      loadOrders();
+    }
+
+    setProfileOpen(true);
   }
 
   return (
@@ -298,35 +322,39 @@ export function Storefront() {
             </button>
           </div>
 
-          <button
-            className="ml-auto hidden min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:inline-flex"
-            onClick={() => {
-              if (user) {
-                loadOrders();
-                setProfileOpen(true);
-              } else {
-                setAuthOpen(true);
-              }
-            }}
-          >
-            <User className="h-4 w-4" />
-            {user ? user.name ?? "Hesabım" : "Giriş Yap"}
-          </button>
+          <div className="relative ml-auto hidden md:block">
+            <button
+              className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57]"
+              onClick={toggleAccountMenu}
+            >
+              <User className="h-4 w-4" />
+              {user ? user.name ?? "Hesabım" : "Giriş Yap"}
+            </button>
+            {profileMenuOpen && user ? (
+              <ProfileDropdown
+                user={user}
+                onOpen={openProfilePanel}
+                onLogout={logout}
+              />
+            ) : null}
+          </div>
 
-          <button
-            aria-label={user ? "Profilim" : "Giriş yap"}
-            className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:hidden"
-            onClick={() => {
-              if (user) {
-                loadOrders();
-                setProfileOpen(true);
-              } else {
-                setAuthOpen(true);
-              }
-            }}
-          >
-            <User className="h-4 w-4" />
-          </button>
+          <div className="relative ml-auto md:hidden">
+            <button
+              aria-label={user ? "Profilim" : "Giriş yap"}
+              className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57]"
+              onClick={toggleAccountMenu}
+            >
+              <User className="h-4 w-4" />
+            </button>
+            {profileMenuOpen && user ? (
+              <ProfileDropdown
+                user={user}
+                onOpen={openProfilePanel}
+                onLogout={logout}
+              />
+            ) : null}
+          </div>
 
           <button className="hidden min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:inline-flex">
             <Heart className="h-4 w-4" />
@@ -502,7 +530,7 @@ export function Storefront() {
           onAuthenticated={(user) => {
             setUser(user);
             setAuthOpen(false);
-            setProfileOpen(true);
+            setProfileMenuOpen(true);
           }}
         />
       ) : null}
@@ -511,6 +539,7 @@ export function Storefront() {
         <ProfilePanel
           user={user}
           orders={orders}
+          initialTab={profileInitialTab}
           onClose={() => setProfileOpen(false)}
           onLogout={logout}
           onUserUpdate={(user) => {
@@ -811,9 +840,63 @@ function SummaryRow({
   );
 }
 
+function ProfileDropdown({
+  user,
+  onOpen,
+  onLogout
+}: {
+  user: AccountUser;
+  onOpen: (tab: ProfileTab) => void;
+  onLogout: () => void;
+}) {
+  const items = [
+    { id: "profile" as const, label: "Profilim", icon: User },
+    { id: "addresses" as const, label: "Adreslerim", icon: MapPin },
+    { id: "orders" as const, label: "Siparişlerim", icon: PackageCheck },
+    { id: "settings" as const, label: "Ayarlar", icon: Settings }
+  ];
+
+  return (
+    <div className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-lg border border-[#eadfd4] bg-white shadow-soft">
+      <div className="border-b border-[#eadfd4] bg-[#fffaf4] px-4 py-3">
+        <p className="text-sm font-black text-[#2d2723]">
+          {user.name ?? "Miev Home müşterisi"}
+        </p>
+        <p className="mt-0.5 truncate text-xs font-semibold text-[#8f7b70]">
+          {user.email}
+        </p>
+      </div>
+      <div className="p-2">
+        {items.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <button
+              key={item.id}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/20 hover:text-[#9f5f57]"
+              onClick={() => onOpen(item.id)}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </button>
+          );
+        })}
+        <button
+          className="mt-1 flex w-full items-center gap-3 rounded-md border-t border-[#eadfd4] px-3 py-2.5 text-left text-sm font-bold text-[#6f4b3d] transition hover:bg-[#e9b7ad]/20 hover:text-[#9f5f57]"
+          onClick={onLogout}
+        >
+          <LogOut className="h-4 w-4" />
+          Çıkış Yap
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ProfilePanel({
   user,
   orders,
+  initialTab,
   onClose,
   onLogout,
   onUserUpdate,
@@ -821,14 +904,13 @@ function ProfilePanel({
 }: {
   user: AccountUser;
   orders: AccountOrder[];
+  initialTab: ProfileTab;
   onClose: () => void;
   onLogout: () => void;
   onUserUpdate: (user: AccountUser) => void;
   onReloadOrders: () => void;
 }) {
-  const [tab, setTab] = useState<"profile" | "addresses" | "orders" | "settings">(
-    "profile"
-  );
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
   const [form, setForm] = useState({
     name: user.name ?? "",
     phone: user.phone ?? "",
