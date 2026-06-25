@@ -2,15 +2,19 @@
 
 import Image from "next/image";
 import {
+  Bell,
   CreditCard,
   Heart,
   Instagram,
   LockKeyhole,
+  LogOut,
   MapPin,
   MessageCircle,
   Minus,
+  PackageCheck,
   Plus,
   Search,
+  Settings,
   ShoppingCart,
   Star,
   User,
@@ -28,12 +32,31 @@ type AccountUser = {
   email: string;
   name?: string | null;
   phone?: string | null;
+  defaultDeliveryAddress?: string | null;
+  defaultBillingAddress?: string | null;
+  emailNotifications?: boolean;
+  smsNotifications?: boolean;
 };
 
 type CheckoutDetails = {
   deliveryAddress: string;
   billingAddress: string;
   paymentMethod: string;
+};
+
+type AccountOrder = {
+  id: number;
+  total: number;
+  status: string;
+  createdAt: string;
+  deliveryAddress?: string | null;
+  items: Array<{
+    quantity: number;
+    unitPrice: number;
+    product: {
+      name: string;
+    };
+  }>;
 };
 
 const instagramUrl = "https://www.instagram.com/mievhomebandirma";
@@ -50,7 +73,9 @@ export function Storefront() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState<AccountUser | null>(null);
+  const [orders, setOrders] = useState<AccountOrder[]>([]);
   const [checkoutStatus, setCheckoutStatus] = useState<string | null>(null);
   const [checkoutDetails, setCheckoutDetails] = useState<CheckoutDetails>({
     deliveryAddress: "",
@@ -66,6 +91,13 @@ export function Storefront() {
       .then((result) => {
         if (mounted) {
           setUser(result.user);
+          if (result.user?.defaultDeliveryAddress) {
+            setCheckoutDetails((current) => ({
+              ...current,
+              deliveryAddress: result.user?.defaultDeliveryAddress ?? "",
+              billingAddress: result.user?.defaultBillingAddress ?? ""
+            }));
+          }
         }
       })
       .catch(() => {
@@ -184,11 +216,34 @@ export function Storefront() {
 
       setCart([]);
       setCheckoutStatus(`Sipariş alındı. Sipariş No: ${result.id}`);
+      loadOrders();
     } catch (error) {
       setCheckoutStatus(
         error instanceof Error ? error.message : "Sipariş oluşturulamadı."
       );
     }
+  }
+
+  async function loadOrders() {
+    try {
+      const response = await fetch("/api/orders");
+
+      if (!response.ok) {
+        return;
+      }
+
+      const result = (await response.json()) as { orders: AccountOrder[] };
+      setOrders(result.orders);
+    } catch {
+      setOrders([]);
+    }
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setUser(null);
+    setOrders([]);
+    setProfileOpen(false);
   }
 
   return (
@@ -245,10 +300,32 @@ export function Storefront() {
 
           <button
             className="ml-auto hidden min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:inline-flex"
-            onClick={() => setAuthOpen(true)}
+            onClick={() => {
+              if (user) {
+                loadOrders();
+                setProfileOpen(true);
+              } else {
+                setAuthOpen(true);
+              }
+            }}
           >
             <User className="h-4 w-4" />
             {user ? user.name ?? "Hesabım" : "Giriş Yap"}
+          </button>
+
+          <button
+            aria-label={user ? "Profilim" : "Giriş yap"}
+            className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:hidden"
+            onClick={() => {
+              if (user) {
+                loadOrders();
+                setProfileOpen(true);
+              } else {
+                setAuthOpen(true);
+              }
+            }}
+          >
+            <User className="h-4 w-4" />
           </button>
 
           <button className="hidden min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:inline-flex">
@@ -425,7 +502,26 @@ export function Storefront() {
           onAuthenticated={(user) => {
             setUser(user);
             setAuthOpen(false);
+            setProfileOpen(true);
           }}
+        />
+      ) : null}
+
+      {profileOpen && user ? (
+        <ProfilePanel
+          user={user}
+          orders={orders}
+          onClose={() => setProfileOpen(false)}
+          onLogout={logout}
+          onUserUpdate={(user) => {
+            setUser(user);
+            setCheckoutDetails((current) => ({
+              ...current,
+              deliveryAddress: user.defaultDeliveryAddress ?? "",
+              billingAddress: user.defaultBillingAddress ?? ""
+            }));
+          }}
+          onReloadOrders={loadOrders}
         />
       ) : null}
     </main>
@@ -712,6 +808,294 @@ function SummaryRow({
       <span>{label}</span>
       <span>{value}</span>
     </div>
+  );
+}
+
+function ProfilePanel({
+  user,
+  orders,
+  onClose,
+  onLogout,
+  onUserUpdate,
+  onReloadOrders
+}: {
+  user: AccountUser;
+  orders: AccountOrder[];
+  onClose: () => void;
+  onLogout: () => void;
+  onUserUpdate: (user: AccountUser) => void;
+  onReloadOrders: () => void;
+}) {
+  const [tab, setTab] = useState<"profile" | "addresses" | "orders" | "settings">(
+    "profile"
+  );
+  const [form, setForm] = useState({
+    name: user.name ?? "",
+    phone: user.phone ?? "",
+    defaultDeliveryAddress: user.defaultDeliveryAddress ?? "",
+    defaultBillingAddress: user.defaultBillingAddress ?? "",
+    emailNotifications: user.emailNotifications ?? true,
+    smsNotifications: user.smsNotifications ?? false
+  });
+  const [status, setStatus] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function saveProfile() {
+    setSaving(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(form)
+      });
+      const result = (await response.json()) as {
+        user?: AccountUser;
+        error?: string;
+      };
+
+      if (!response.ok || !result.user) {
+        throw new Error(result.error ?? "Profil kaydedilemedi.");
+      }
+
+      onUserUpdate(result.user);
+      setStatus("Bilgiler kaydedildi.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Profil kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const tabs = [
+    { id: "profile" as const, label: "Profil", icon: User },
+    { id: "addresses" as const, label: "Adresler", icon: MapPin },
+    { id: "orders" as const, label: "Siparişler", icon: PackageCheck },
+    { id: "settings" as const, label: "Ayarlar", icon: Settings }
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <button
+        aria-label="Profil panelini kapat"
+        className="absolute inset-0 bg-ink/45"
+        onClick={onClose}
+      />
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col bg-porcelain shadow-soft">
+        <div className="flex items-center justify-between border-b border-cocoa/10 bg-white p-5">
+          <div>
+            <p className="text-sm font-bold text-rosewood">Hesabım</p>
+            <h2 className="text-2xl font-black text-ink">
+              {user.name ?? user.email}
+            </h2>
+          </div>
+          <button
+            aria-label="Kapat"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-cocoa/10 bg-white"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid min-h-0 flex-1 md:grid-cols-[220px_1fr]">
+          <nav className="flex gap-2 overflow-x-auto border-b border-cocoa/10 bg-white p-3 md:flex-col md:border-b-0 md:border-r">
+            {tabs.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <button
+                  key={item.id}
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-black transition ${
+                    tab === item.id
+                      ? "bg-rosewood text-white"
+                      : "bg-porcelain text-cocoa hover:bg-blush/20"
+                  }`}
+                  onClick={() => {
+                    setTab(item.id);
+                    if (item.id === "orders") {
+                      onReloadOrders();
+                    }
+                  }}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              );
+            })}
+            <button
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 text-sm font-black text-cocoa transition hover:bg-blush/20 md:mt-auto"
+              onClick={onLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              Çıkış Yap
+            </button>
+          </nav>
+
+          <div className="overflow-y-auto p-5">
+            {tab === "profile" ? (
+              <div className="space-y-4">
+                <SectionTitle title="Profil Bilgileri" text="Ad, telefon ve e-posta bilgilerinizi görüntüleyin." />
+                <input
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  placeholder="Ad Soyad"
+                  className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
+                />
+                <input
+                  value={user.email}
+                  readOnly
+                  className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold text-cocoa/70"
+                />
+                <input
+                  value={form.phone}
+                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                  placeholder="Telefon numarası"
+                  className="h-12 w-full rounded-lg border border-cocoa/10 bg-white px-4 text-sm font-semibold outline-none focus:border-rosewood/45"
+                />
+              </div>
+            ) : null}
+
+            {tab === "addresses" ? (
+              <div className="space-y-4">
+                <SectionTitle title="Adreslerim" text="Alışveriş sırasında kullanılacak varsayılan adresleri kaydedin." />
+                <textarea
+                  value={form.defaultDeliveryAddress}
+                  onChange={(event) =>
+                    setForm({ ...form, defaultDeliveryAddress: event.target.value })
+                  }
+                  placeholder="Varsayılan teslimat adresi"
+                  className="min-h-28 w-full rounded-lg border border-cocoa/10 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-rosewood/45"
+                />
+                <textarea
+                  value={form.defaultBillingAddress}
+                  onChange={(event) =>
+                    setForm({ ...form, defaultBillingAddress: event.target.value })
+                  }
+                  placeholder="Varsayılan fatura adresi"
+                  className="min-h-28 w-full rounded-lg border border-cocoa/10 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-rosewood/45"
+                />
+              </div>
+            ) : null}
+
+            {tab === "orders" ? (
+              <div className="space-y-4">
+                <SectionTitle title="Siparişlerim" text="Oluşturduğunuz siparişleri buradan takip edin." />
+                {orders.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-cocoa/20 bg-white p-6 text-center text-sm font-bold text-cocoa">
+                    Henüz sipariş bulunmuyor.
+                  </div>
+                ) : (
+                  orders.map((order) => (
+                    <div key={order.id} className="rounded-lg border border-cocoa/10 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-black text-ink">Sipariş #{order.id}</p>
+                          <p className="mt-1 text-xs font-bold text-cocoa/65">
+                            {new Date(order.createdAt).toLocaleDateString("tr-TR")}
+                          </p>
+                        </div>
+                        <span className="rounded-lg bg-cream px-3 py-1 text-xs font-black text-rosewood">
+                          {order.status}
+                        </span>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm text-cocoa">
+                        {order.items.map((item) => (
+                          <p key={`${order.id}-${item.product.name}`}>
+                            {item.product.name} x {item.quantity}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="mt-4 text-right text-lg font-black text-rosewood">
+                        {formatPrice(order.total)}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : null}
+
+            {tab === "settings" ? (
+              <div className="space-y-4">
+                <SectionTitle title="Ayarlar" text="Bildirim ve hesap tercihlerinizi yönetin." />
+                <ToggleRow
+                  icon={Bell}
+                  title="E-posta bildirimleri"
+                  checked={form.emailNotifications}
+                  onChange={(checked) =>
+                    setForm({ ...form, emailNotifications: checked })
+                  }
+                />
+                <ToggleRow
+                  icon={MessageCircle}
+                  title="SMS bildirimleri"
+                  checked={form.smsNotifications}
+                  onChange={(checked) =>
+                    setForm({ ...form, smsNotifications: checked })
+                  }
+                />
+                <div className="rounded-lg bg-white p-4 text-sm font-semibold leading-6 text-cocoa">
+                  Şifre değiştirme ve kart saklama seçenekleri ödeme entegrasyonu
+                  tamamlandığında aktif edilecektir.
+                </div>
+              </div>
+            ) : null}
+
+            <button
+              className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-rosewood px-5 text-sm font-black text-white disabled:opacity-60"
+              disabled={saving}
+              onClick={saveProfile}
+            >
+              {saving ? "Kaydediliyor..." : "Değişiklikleri Kaydet"}
+            </button>
+            {status ? (
+              <p className="mt-3 rounded-lg bg-cream px-3 py-2 text-center text-xs font-bold text-cocoa">
+                {status}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function SectionTitle({ title, text }: { title: string; text: string }) {
+  return (
+    <div>
+      <h3 className="text-xl font-black text-ink">{title}</h3>
+      <p className="mt-1 text-sm font-semibold text-cocoa/70">{text}</p>
+    </div>
+  );
+}
+
+function ToggleRow({
+  icon: Icon,
+  title,
+  checked,
+  onChange
+}: {
+  icon: typeof Bell;
+  title: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-4 rounded-lg bg-white p-4">
+      <span className="flex items-center gap-3 text-sm font-black text-ink">
+        <Icon className="h-5 w-5 text-rosewood" />
+        {title}
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="h-5 w-5 accent-rosewood"
+      />
+    </label>
   );
 }
 

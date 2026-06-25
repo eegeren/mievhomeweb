@@ -26,14 +26,18 @@ model Product {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  name         String?
-  email        String   @unique
-  passwordHash String
-  phone        String?
-  role         Role     @default(CUSTOMER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                     Int      @id @default(autoincrement())
+  name                   String?
+  email                  String   @unique
+  passwordHash           String
+  phone                  String?
+  defaultDeliveryAddress String?
+  defaultBillingAddress  String?
+  emailNotifications     Boolean  @default(true)
+  smsNotifications       Boolean  @default(false)
+  role                   Role     @default(CUSTOMER)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   orders Order[]
 }

@@ -77,3 +77,37 @@ export async function POST(request: Request) {
 
   return NextResponse.json(order, { status: 201 });
 }
+
+export async function GET() {
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json(
+      { error: "DATABASE_URL tanımlı değil." },
+      { status: 503 }
+    );
+  }
+
+  const token = cookies().get(cookieName)?.value;
+  const user = await verifySessionToken(token);
+
+  if (!user) {
+    return NextResponse.json({ error: "Giriş gerekli." }, { status: 401 });
+  }
+
+  const orders = await prisma.order.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      items: {
+        include: {
+          product: {
+            select: {
+              name: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return NextResponse.json({ orders });
+}
