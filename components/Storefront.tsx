@@ -74,6 +74,8 @@ export function Storefront() {
   const [products, setProducts] = useState<Product[]>(fallbackProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [favoriteProductIds, setFavoriteProductIds] = useState<number[]>([]);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -89,6 +91,15 @@ export function Storefront() {
 
   useEffect(() => {
     let mounted = true;
+
+    const storedFavorites = window.localStorage.getItem("miev-favorites");
+    if (storedFavorites) {
+      try {
+        setFavoriteProductIds(JSON.parse(storedFavorites) as number[]);
+      } catch {
+        setFavoriteProductIds([]);
+      }
+    }
 
     fetch("/api/auth/me")
       .then((response) => response.json() as Promise<{ user: AccountUser | null }>)
@@ -134,6 +145,13 @@ export function Storefront() {
     };
   }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem(
+      "miev-favorites",
+      JSON.stringify(favoriteProductIds)
+    );
+  }, [favoriteProductIds]);
+
   const filteredProducts = products
     .filter((product) => {
       const search = query.toLocaleLowerCase("tr");
@@ -144,6 +162,9 @@ export function Storefront() {
       return matchesQuery;
     })
     .sort((a, b) => b.reviews - a.reviews);
+  const favoriteProducts = products.filter((product) =>
+    favoriteProductIds.includes(product.id)
+  );
 
   const cartQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = cart.reduce(
@@ -170,6 +191,14 @@ export function Storefront() {
     setCartOpen(true);
   }
 
+  function toggleFavorite(productId: number) {
+    setFavoriteProductIds((current) =>
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId]
+    );
+  }
+
   function updateQuantity(productId: number, quantity: number) {
     setCart((current) =>
       current
@@ -183,6 +212,12 @@ export function Storefront() {
   }
 
   async function createOrder() {
+    if (!user) {
+      setCheckoutStatus("Sipariş oluşturmak için giriş yapmalısınız.");
+      setAuthOpen(true);
+      return;
+    }
+
     if (cart.length === 0) {
       setCheckoutStatus("Sepetiniz boş.");
       return;
@@ -356,9 +391,18 @@ export function Storefront() {
             ) : null}
           </div>
 
-          <button className="hidden min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57] md:inline-flex">
+          <button
+            aria-label="Favorilerim"
+            className="relative inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-bold text-[#2d2723] transition hover:bg-[#e9b7ad]/25 hover:text-[#9f5f57]"
+            onClick={() => setFavoritesOpen(true)}
+          >
             <Heart className="h-4 w-4" />
-            Favorilerim
+            <span className="hidden md:inline">Favorilerim</span>
+            {favoriteProductIds.length > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#9f5f57] px-1.5 text-xs text-white">
+                {favoriteProductIds.length}
+              </span>
+            ) : null}
           </button>
 
           <button
@@ -408,6 +452,8 @@ export function Storefront() {
               key={product.id}
               product={product}
               onAdd={() => addToCart(product)}
+              isFavorite={favoriteProductIds.includes(product.id)}
+              onToggleFavorite={() => toggleFavorite(product.id)}
             />
           ))}
         </div>
@@ -511,16 +557,36 @@ export function Storefront() {
       {cartOpen ? (
         <CartDrawer
           cart={cart}
+          user={user}
           subtotal={subtotal}
           shipping={shipping}
           total={total}
           onClose={() => setCartOpen(false)}
           onUpdate={updateQuantity}
-          onAuth={() => setAuthOpen(true)}
+          onAuth={() => {
+            setAuthOpen(true);
+            setProfileMenuOpen(false);
+          }}
+          onAccount={() => {
+            setCartOpen(false);
+            openProfilePanel("profile");
+          }}
           onCheckout={createOrder}
           checkoutStatus={checkoutStatus}
           checkoutDetails={checkoutDetails}
           onCheckoutDetailsChange={setCheckoutDetails}
+        />
+      ) : null}
+
+      {favoritesOpen ? (
+        <FavoritesDrawer
+          products={favoriteProducts}
+          onClose={() => setFavoritesOpen(false)}
+          onAdd={(product) => {
+            setFavoritesOpen(false);
+            addToCart(product);
+          }}
+          onRemove={(productId) => toggleFavorite(productId)}
         />
       ) : null}
 
@@ -589,10 +655,14 @@ function TrustItem({
 
 function ProductCard({
   product,
-  onAdd
+  onAdd,
+  isFavorite,
+  onToggleFavorite
 }: {
   product: Product;
   onAdd: () => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 }) {
   return (
     <article className="group flex h-full flex-col rounded-md border border-[#eadfd4] bg-white p-3 transition hover:border-[#9f5f57] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
@@ -603,10 +673,13 @@ function ProductCard({
           </span>
         ) : null}
         <button
-          aria-label="Favorilere ekle"
-          className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#6f4b3d] shadow-sm transition hover:text-[#9f5f57]"
+          aria-label={isFavorite ? "Favorilerden çıkar" : "Favorilere ekle"}
+          className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm transition hover:text-[#9f5f57] ${
+            isFavorite ? "text-[#9f5f57]" : "text-[#6f4b3d]"
+          }`}
+          onClick={onToggleFavorite}
         >
-          <Heart className="h-4 w-4" />
+          <Heart className={`h-4 w-4 ${isFavorite ? "fill-[#9f5f57]" : ""}`} />
         </button>
         <div className="flex h-full items-end justify-center gap-3">
           <span className="h-20 w-20 rounded-full border-[10px] border-white bg-blush/45 shadow-sm" />
@@ -649,24 +722,28 @@ function ProductCard({
 
 function CartDrawer({
   cart,
+  user,
   subtotal,
   shipping,
   total,
   onClose,
   onUpdate,
   onAuth,
+  onAccount,
   onCheckout,
   checkoutStatus,
   checkoutDetails,
   onCheckoutDetailsChange
 }: {
   cart: CartItem[];
+  user: AccountUser | null;
   subtotal: number;
   shipping: number;
   total: number;
   onClose: () => void;
   onUpdate: (productId: number, quantity: number) => void;
   onAuth: () => void;
+  onAccount: () => void;
   onCheckout: () => void;
   checkoutStatus: string | null;
   checkoutDetails: CheckoutDetails;
@@ -782,7 +859,6 @@ function CartDrawer({
               >
                 <option>Kapıda ödeme</option>
                 <option>Mağazada ödeme</option>
-                <option>Kart ile ödeme (yakında)</option>
               </select>
             </div>
           ) : null}
@@ -803,20 +879,110 @@ function CartDrawer({
             <CreditCard className="h-4 w-4" />
             Siparişi Oluştur
           </button>
-          <button
-            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-cocoa/10 bg-white px-5 text-sm font-black text-cocoa"
-            onClick={onAuth}
-          >
-            Hesaba Giriş Yap
-          </button>
+          {user ? (
+            <button
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-cocoa/10 bg-white px-5 text-sm font-black text-cocoa"
+              onClick={onAccount}
+            >
+              Hesabıma Git
+            </button>
+          ) : (
+            <button
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-cocoa/10 bg-white px-5 text-sm font-black text-cocoa"
+              onClick={onAuth}
+            >
+              Hesaba Giriş Yap
+            </button>
+          )}
           {checkoutStatus ? (
             <p className="mt-3 rounded-lg bg-cream px-3 py-2 text-center text-xs font-bold text-cocoa">
               {checkoutStatus}
             </p>
           ) : null}
-          <p className="mt-3 text-center text-xs font-semibold text-cocoa/55">
-            Ödeme entegrasyonu sonraki aşamada eklenebilir.
-          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function FavoritesDrawer({
+  products,
+  onClose,
+  onAdd,
+  onRemove
+}: {
+  products: Product[];
+  onClose: () => void;
+  onAdd: (product: Product) => void;
+  onRemove: (productId: number) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50">
+      <button
+        aria-label="Favorileri kapat"
+        className="absolute inset-0 bg-ink/45"
+        onClick={onClose}
+      />
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-porcelain shadow-soft">
+        <div className="flex items-center justify-between border-b border-cocoa/10 p-5">
+          <div>
+            <p className="text-sm font-bold text-rosewood">Favorilerim</p>
+            <h2 className="text-2xl font-black">Beğendiğiniz ürünler</h2>
+          </div>
+          <button
+            aria-label="Kapat"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-cocoa/10 bg-white"
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {products.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-cocoa/20 p-6 text-center">
+              <Heart className="mx-auto h-10 w-10 text-cocoa/35" />
+              <p className="mt-4 font-black">Favori ürününüz yok</p>
+              <p className="mt-2 text-sm text-cocoa/65">
+                Ürün kartlarındaki kalp ikonuna basarak favori listenizi
+                oluşturabilirsiniz.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {products.map((product) => (
+                <div key={product.id} className="rounded-lg border border-cocoa/10 bg-white p-4">
+                  <div className="flex gap-4">
+                    <div className={`h-20 w-20 shrink-0 rounded-lg bg-gradient-to-br ${product.color}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black leading-6">{product.name}</p>
+                      <p className="mt-1 text-sm leading-5 text-cocoa/70">
+                        {product.description}
+                      </p>
+                      <p className="mt-2 text-sm font-black text-rosewood">
+                        {formatPrice(product.price)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-rosewood px-3 text-sm font-black text-white"
+                      onClick={() => onAdd(product)}
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Sepete Ekle
+                    </button>
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-cocoa/10 px-3 text-sm font-black text-cocoa"
+                      onClick={() => onRemove(product.id)}
+                    >
+                      Kaldır
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
     </div>
@@ -1120,8 +1286,8 @@ function ProfilePanel({
                   }
                 />
                 <div className="rounded-lg bg-white p-4 text-sm font-semibold leading-6 text-cocoa">
-                  Şifre değiştirme ve kart saklama seçenekleri ödeme entegrasyonu
-                  tamamlandığında aktif edilecektir.
+                  Tercihleriniz kaydedildiğinde kampanya ve sipariş
+                  bilgilendirmeleri bu seçimlere göre güncellenir.
                 </div>
               </div>
             ) : null}
@@ -1307,8 +1473,8 @@ function AuthModal({
                 </span>
               </label>
               <p className="rounded-lg bg-cream px-3 py-2 text-xs font-semibold leading-5 text-cocoa">
-                SMS veya e-posta doğrulaması canlı entegrasyon aşamasında
-                etkinleştirilecektir.
+                Telefon ve e-posta bilgileriniz sipariş takibi ve mağaza
+                iletişimi için hesabınızda saklanır.
               </p>
             </>
           ) : null}

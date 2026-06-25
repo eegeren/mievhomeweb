@@ -30,6 +30,20 @@ export async function POST(request: Request) {
     );
   }
 
+  if (body.items.some((item) => item.quantity < 1)) {
+    return NextResponse.json(
+      { error: "Ürün adedi en az 1 olmalı." },
+      { status: 400 }
+    );
+  }
+
+  const token = cookies().get(cookieName)?.value;
+  const user = await verifySessionToken(token);
+
+  if (!user) {
+    return NextResponse.json({ error: "Giriş gerekli." }, { status: 401 });
+  }
+
   const productIds = body.items.map((item) => item.productId);
   const products = await prisma.product.findMany({
     where: {
@@ -56,13 +70,12 @@ export async function POST(request: Request) {
     (sum, item) => sum + item.unitPrice * item.quantity,
     0
   );
-  const token = cookies().get(cookieName)?.value;
-  const user = await verifySessionToken(token);
+  const shipping = total >= 750 || total === 0 ? 0 : 49;
 
   const order = await prisma.order.create({
     data: {
-      userId: user?.id,
-      total,
+      userId: user.id,
+      total: total + shipping,
       deliveryAddress: body.deliveryAddress,
       billingAddress: body.billingAddress,
       paymentMethod: body.paymentMethod,
